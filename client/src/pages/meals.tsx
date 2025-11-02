@@ -2,8 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ChevronDown, ChevronUp, Download } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, Volume2, Pause, Play } from "lucide-react";
 import { useState } from "react";
+import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 
 const mealPlan = [
   {
@@ -57,6 +58,10 @@ const mealPlan = [
 
 export default function MealPlan() {
   const [expandedMeals, setExpandedMeals] = useState<number[]>([]);
+  const { speak, stop, pause, resume, isSpeaking, isPaused, isSupported } = useTextToSpeech({
+    rate: 1.0,
+    pitch: 1.0,
+  });
   const todayPlan = mealPlan[0];
 
   const toggleMeal = (index: number) => {
@@ -69,16 +74,55 @@ export default function MealPlan() {
   const carbsPercent = (todayPlan.macros.carbs * 4 / todayPlan.totalCalories) * 100;
   const fatsPercent = (todayPlan.macros.fats * 9 / todayPlan.totalCalories) * 100;
 
+  const handleSpeakMeal = (meal: typeof todayPlan.meals[0]) => {
+    const mealText = `${meal.meal}: ${meal.name}. ${meal.calories} calories. ` +
+      `Protein: ${meal.protein} grams. Carbs: ${meal.carbs} grams. Fats: ${meal.fats} grams. ` +
+      `Ingredients: ${meal.ingredients.join(', ')}. ` +
+      `Recipe: ${meal.recipe}`;
+    speak(mealText);
+  };
+
+  const handleSpeakAllMeals = () => {
+    const allMealsText = `${todayPlan.day} meal plan. Total calories: ${todayPlan.totalCalories}. ` +
+      todayPlan.meals.map(meal =>
+        `${meal.meal}: ${meal.name}. ${meal.calories} calories. Recipe: ${meal.recipe}`
+      ).join(' ');
+    speak(allMealsText);
+  };
+
+  const handleVoiceControl = () => {
+    if (isSpeaking && !isPaused) {
+      pause();
+    } else if (isPaused) {
+      resume();
+    } else {
+      stop();
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-4xl font-display uppercase mb-2">
-            Meal Plan
-          </h1>
-          <p className="text-muted-foreground">
-            Personalized nutrition for your goals
-          </p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h1 className="text-4xl font-display uppercase mb-2">
+              Meal Plan
+            </h1>
+            <p className="text-muted-foreground">
+              Personalized nutrition for your goals
+            </p>
+          </div>
+          {isSupported && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={isSpeaking ? handleVoiceControl : handleSpeakAllMeals}
+              title={isSpeaking ? (isPaused ? "Resume" : "Pause") : "Listen to full meal plan"}
+              className="mt-[-30px]"
+            >
+              {isSpeaking ? (isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />) : <Volume2 className="h-4 w-4" />}
+            </Button>
+          )}
         </div>
         <Button variant="outline" data-testid="button-shopping-list">
           <Download className="h-4 w-4 mr-2" />
@@ -133,6 +177,19 @@ export default function MealPlan() {
                   <div className="flex items-center gap-3 mb-1">
                     <Badge variant="outline">{meal.meal}</Badge>
                     <CardTitle className="text-xl">{meal.name}</CardTitle>
+                    {isSupported && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSpeakMeal(meal);
+                        }}
+                        title="Listen to meal details"
+                      >
+                        <Volume2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                     <span>{meal.calories} cal</span>

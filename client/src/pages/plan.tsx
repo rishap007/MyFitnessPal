@@ -12,11 +12,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 import {
   Download,
   RefreshCw,
   Volume2,
   VolumeX,
+  Pause,
+  Play,
   Image as ImageIcon,
   Sparkles,
   Dumbbell,
@@ -78,10 +81,12 @@ interface FitnessPlan {
 export default function Plan() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { speak, stop, pause, resume, isSpeaking, isPaused, isSupported } = useTextToSpeech({
+    rate: 1.0,
+    pitch: 1.0,
+  });
   const [plan, setPlan] = useState<FitnessPlan | null>(null);
   const [quote, setQuote] = useState<string>("");
-  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [loadingImage, setLoadingImage] = useState<string | null>(null);
   const [exerciseImages, setExerciseImages] = useState<Record<string, string>>({});
   const [mealImages, setMealImages] = useState<Record<string, string>>({});
@@ -174,58 +179,31 @@ export default function Plan() {
     }
   };
 
-  const speakText = async (text: string) => {
-    if (isPlayingVoice) {
-      currentAudio?.pause();
-      setCurrentAudio(null);
-      setIsPlayingVoice(false);
-      return;
-    }
-
-    try {
-      setIsPlayingVoice(true);
-      const response = await fetch("/api/text-to-speech", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-
-      audio.onended = () => {
-        setIsPlayingVoice(false);
-        setCurrentAudio(null);
-      };
-
-      setCurrentAudio(audio);
-      await audio.play();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to generate voice",
-        variant: "destructive",
-      });
-      setIsPlayingVoice(false);
-    }
-  };
-
   const readWorkout = (workout: DailyWorkout) => {
-    const text = `${workout.name} for ${workout.duration}. ${workout.exercises
-      .map(
-        (ex) =>
-          `${ex.name}: ${ex.sets}, ${ex.reps || ex.duration || ""}, rest ${ex.rest}`
-      )
-      .join(". ")}`;
-    speakText(text);
+    const text = `${workout.day}. ${workout.name}. Duration: ${workout.duration}. Difficulty: ${workout.difficulty}. ` +
+      workout.exercises.map((ex, idx) =>
+        `Exercise ${idx + 1}: ${ex.name}. ${ex.sets}. ${ex.reps || ex.duration || ""}. Rest: ${ex.rest}. ${ex.instructions || ""}`
+      ).join(' ');
+    speak(text);
   };
 
   const readMeals = (meals: DailyMeals) => {
-    const text = `${meals.day} meal plan. Total ${meals.totalCalories} calories. ${meals.meals
-      .map((meal) => `${meal.meal}: ${meal.name}, ${meal.calories} calories`)
-      .join(". ")}`;
-    speakText(text);
+    const text = `${meals.day} meal plan. Total ${meals.totalCalories} calories. ` +
+      `Protein: ${meals.macros.protein} grams. Carbs: ${meals.macros.carbs} grams. Fats: ${meals.macros.fats} grams. ` +
+      meals.meals.map((meal) =>
+        `${meal.meal}: ${meal.name}, ${meal.calories} calories. ${meal.recipe || ""}`
+      ).join(' ');
+    speak(text);
+  };
+
+  const handleVoiceControl = () => {
+    if (isSpeaking && !isPaused) {
+      pause();
+    } else if (isPaused) {
+      resume();
+    } else {
+      stop();
+    }
   };
 
   const exportPDF = () => {
@@ -463,18 +441,24 @@ export default function Plan() {
                       <div className="space-y-4 pt-4">
                         <div className="flex items-center gap-2 mb-4">
                           <Badge>{day.difficulty}</Badge>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => readWorkout(day)}
-                          >
-                            {isPlayingVoice ? (
-                              <VolumeX className="h-4 w-4 mr-2" />
-                            ) : (
-                              <Volume2 className="h-4 w-4 mr-2" />
-                            )}
-                            {isPlayingVoice ? "Stop" : "Read Aloud"}
-                          </Button>
+                          {isSupported && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={isSpeaking ? handleVoiceControl : () => readWorkout(day)}
+                            >
+                              {isSpeaking ? (
+                                isPaused ? (
+                                  <Play className="h-4 w-4 mr-2" />
+                                ) : (
+                                  <Pause className="h-4 w-4 mr-2" />
+                                )
+                              ) : (
+                                <Volume2 className="h-4 w-4 mr-2" />
+                              )}
+                              {isSpeaking ? (isPaused ? "Resume" : "Pause") : "Read Aloud"}
+                            </Button>
+                          )}
                         </div>
 
                         {day.exercises.map((exercise, exIndex) => (
@@ -568,18 +552,24 @@ export default function Plan() {
                             <Badge variant="outline">C: {day.macros.carbs}g</Badge>
                             <Badge variant="outline">F: {day.macros.fats}g</Badge>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => readMeals(day)}
-                          >
-                            {isPlayingVoice ? (
-                              <VolumeX className="h-4 w-4 mr-2" />
-                            ) : (
-                              <Volume2 className="h-4 w-4 mr-2" />
-                            )}
-                            {isPlayingVoice ? "Stop" : "Read Aloud"}
-                          </Button>
+                          {isSupported && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={isSpeaking ? handleVoiceControl : () => readMeals(day)}
+                            >
+                              {isSpeaking ? (
+                                isPaused ? (
+                                  <Play className="h-4 w-4 mr-2" />
+                                ) : (
+                                  <Pause className="h-4 w-4 mr-2" />
+                                )
+                              ) : (
+                                <Volume2 className="h-4 w-4 mr-2" />
+                              )}
+                              {isSpeaking ? (isPaused ? "Resume" : "Pause") : "Read Aloud"}
+                            </Button>
+                          )}
                         </div>
 
                         {day.meals.map((meal, mealIndex) => (

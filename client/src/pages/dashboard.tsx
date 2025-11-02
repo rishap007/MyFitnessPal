@@ -2,9 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Dumbbell, Flame, Calendar, Play } from "lucide-react";
+import { Dumbbell, Flame, Calendar, Play, Volume2, VolumeX, Pause } from "lucide-react";
+import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 
 export default function Dashboard() {
+  const { speak, stop, pause, resume, isSpeaking, isPaused, isSupported } = useTextToSpeech({
+    rate: 1.0,
+    pitch: 1.0,
+    volume: 1.0,
+  });
+
   const stats = [
     { label: "Workouts Completed", value: "12", icon: Dumbbell, change: "+3 this week" },
     { label: "Calories Burned", value: "2,450", icon: Flame, change: "This week" },
@@ -30,6 +37,31 @@ export default function Dashboard() {
     { meal: "Dinner", name: "Salmon with Vegetables", calories: 680 },
     { meal: "Snacks", name: "Protein Shake & Almonds", calories: 280 },
   ];
+
+  const handleSpeakWorkout = () => {
+    const workoutText = `Today's workout is ${todayWorkout.name}. Duration: ${todayWorkout.duration}. Difficulty: ${todayWorkout.difficulty}. ` +
+      todayWorkout.exercises.map((ex, idx) =>
+        `Exercise ${idx + 1}: ${ex.name}. ${ex.sets}. ${ex.rest} rest.`
+      ).join(' ');
+    speak(workoutText);
+  };
+
+  const handleSpeakMeals = () => {
+    const mealsText = "Today's meal plan. " + todayMeals.map(meal =>
+      `${meal.meal}: ${meal.name}, ${meal.calories} calories.`
+    ).join(' ');
+    speak(mealsText);
+  };
+
+  const handleVoiceControl = () => {
+    if (isSpeaking && !isPaused) {
+      pause();
+    } else if (isPaused) {
+      resume();
+    } else {
+      stop();
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -67,7 +99,19 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
-              <CardTitle>Today's Workout</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Today's Workout</CardTitle>
+                {isSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={isSpeaking ? handleVoiceControl : handleSpeakWorkout}
+                    title={isSpeaking ? (isPaused ? "Resume" : "Pause") : "Listen to workout"}
+                  >
+                    {isSpeaking ? (isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />) : <Volume2 className="h-4 w-4" />}
+                  </Button>
+                )}
+              </div>
               <Badge variant="secondary">{todayWorkout.difficulty}</Badge>
             </div>
           </CardHeader>
@@ -101,7 +145,19 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
-              <CardTitle>Today's Meals</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Today's Meals</CardTitle>
+                {isSupported && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={isSpeaking ? handleVoiceControl : handleSpeakMeals}
+                    title={isSpeaking ? (isPaused ? "Resume" : "Pause") : "Listen to meal plan"}
+                  >
+                    {isSpeaking ? (isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />) : <Volume2 className="h-4 w-4" />}
+                  </Button>
+                )}
+              </div>
               <span className="text-sm text-muted-foreground">1,830 / 2,000 cal</span>
             </div>
           </CardHeader>
@@ -147,6 +203,29 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Daily Motivation</CardTitle>
+            {isSupported && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => speak("Your only limit is you. Push harder today and make every rep count!")}
+                title="Listen to motivational quote"
+              >
+                <Volume2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <blockquote className="text-lg font-medium italic">
+            "Your only limit is you. Push harder today and make every rep count!"
+          </blockquote>
         </CardContent>
       </Card>
     </div>

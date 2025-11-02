@@ -238,30 +238,78 @@ export async function generateMotivationalQuote(): Promise<string> {
 export async function generateExerciseImage(
   exerciseName: string
 ): Promise<string> {
-  // Note: Image generation is not available with free Gemini API
-  // Options:
-  // 1. Use free stock photo APIs like Pexels or Unsplash
-  // 2. Use Hugging Face's free image generation models
-  // 3. Return a placeholder or search query
-
   console.log(`Image generation requested for: ${exerciseName}`);
-  console.log("Note: Using free Gemini API - image generation not included");
 
-  // Return a Pexels search URL as fallback (free to use)
-  const searchQuery = encodeURIComponent(`${exerciseName} exercise fitness`);
-  return `https://www.pexels.com/search/${searchQuery}`;
+  try {
+    const searchQuery = encodeURIComponent(`${exerciseName} exercise fitness gym`);
+    const unsplashAccessKey = process.env.UNSPLASH_ACCESS_KEY;
+
+    if (unsplashAccessKey) {
+      // Use Unsplash API with access key (better rate limits)
+      const response = await fetch(
+        `https://api.unsplash.com/search/photos?query=${searchQuery}&per_page=1&orientation=landscape`,
+        {
+          headers: {
+            'Authorization': `Client-ID ${unsplashAccessKey}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+          console.log(`✅ Fetched exercise image from Unsplash API`);
+          return data.results[0].urls.regular;
+        }
+      }
+    }
+
+    // Fallback: Use Unsplash Source (no API key needed, but rate limited)
+    // Returns a random image matching the query
+    console.log(`📸 Using Unsplash source (no API key)`);
+    return `https://source.unsplash.com/800x600/?${searchQuery}`;
+  } catch (error) {
+    console.error("Error fetching exercise image:", error);
+    // Return a generic fitness image as ultimate fallback
+    return `https://source.unsplash.com/800x600/?gym,fitness,exercise`;
+  }
 }
 
 export async function generateMealImage(mealName: string): Promise<string> {
-  // Note: Image generation is not available with free Gemini API
-  // Using Pexels search URL as a free alternative
-
   console.log(`Meal image requested for: ${mealName}`);
-  console.log("Note: Using free Gemini API - image generation not included");
 
-  // Return a Pexels search URL as fallback (free to use)
-  const searchQuery = encodeURIComponent(`${mealName} healthy food`);
-  return `https://www.pexels.com/search/${searchQuery}`;
+  try {
+    const searchQuery = encodeURIComponent(`${mealName} healthy food meal`);
+    const unsplashAccessKey = process.env.UNSPLASH_ACCESS_KEY;
+
+    if (unsplashAccessKey) {
+      // Use Unsplash API with access key (better rate limits)
+      const response = await fetch(
+        `https://api.unsplash.com/search/photos?query=${searchQuery}&per_page=1&orientation=landscape`,
+        {
+          headers: {
+            'Authorization': `Client-ID ${unsplashAccessKey}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+          console.log(`✅ Fetched meal image from Unsplash API`);
+          return data.results[0].urls.regular;
+        }
+      }
+    }
+
+    // Fallback: Use Unsplash Source (no API key needed, but rate limited)
+    console.log(`📸 Using Unsplash source (no API key)`);
+    return `https://source.unsplash.com/800x600/?${searchQuery}`;
+  } catch (error) {
+    console.error("Error fetching meal image:", error);
+    // Return a generic food image as ultimate fallback
+    return `https://source.unsplash.com/800x600/?healthy,food,meal`;
+  }
 }
 
 export async function textToSpeech(text: string): Promise<Buffer> {

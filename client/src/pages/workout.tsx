@@ -2,8 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar, Clock, Dumbbell } from "lucide-react";
+import { Calendar, Clock, Dumbbell, Volume2, VolumeX, Pause, Play } from "lucide-react";
 import { useState } from "react";
+import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 
 const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const workoutPlan = [
@@ -89,6 +90,10 @@ const workoutPlan = [
 export default function WorkoutPlan() {
   const [selectedDay, setSelectedDay] = useState(0);
   const [completedExercises, setCompletedExercises] = useState<number[]>([]);
+  const { speak, stop, pause, resume, isSpeaking, isPaused, isSupported } = useTextToSpeech({
+    rate: 1.0,
+    pitch: 1.0,
+  });
 
   const currentWorkout = workoutPlan[selectedDay];
 
@@ -96,6 +101,34 @@ export default function WorkoutPlan() {
     setCompletedExercises((prev) =>
       prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
     );
+  };
+
+  const handleSpeakWorkout = () => {
+    if (currentWorkout.exercises.length === 0) {
+      speak(`${currentWorkout.day} is a rest day. Take it easy today. Your muscles need time to rebuild.`);
+      return;
+    }
+
+    const workoutText = `${currentWorkout.day}. ${currentWorkout.name}. Duration: ${currentWorkout.duration}. Difficulty: ${currentWorkout.difficulty}. ` +
+      currentWorkout.exercises.map((ex, idx) =>
+        `Exercise ${idx + 1}: ${ex.name}. ${ex.sets}. Rest: ${ex.rest}. Instructions: ${ex.instructions}.`
+      ).join(' ');
+    speak(workoutText);
+  };
+
+  const handleSpeakExercise = (exercise: typeof currentWorkout.exercises[0], index: number) => {
+    const exerciseText = `Exercise ${index + 1}: ${exercise.name}. ${exercise.sets}. Rest: ${exercise.rest}. Instructions: ${exercise.instructions}.`;
+    speak(exerciseText);
+  };
+
+  const handleVoiceControl = () => {
+    if (isSpeaking && !isPaused) {
+      pause();
+    } else if (isPaused) {
+      resume();
+    } else {
+      stop();
+    }
   };
 
   return (
@@ -126,10 +159,22 @@ export default function WorkoutPlan() {
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
+            <div className="flex items-center gap-2">
               <CardTitle className="text-2xl mb-2">
                 {currentWorkout.name}
               </CardTitle>
+              {isSupported && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={isSpeaking ? handleVoiceControl : handleSpeakWorkout}
+                  title={isSpeaking ? (isPaused ? "Resume" : "Pause") : "Listen to full workout"}
+                >
+                  {isSpeaking ? (isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />) : <Volume2 className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
+            <div className="w-full">
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
@@ -174,6 +219,16 @@ export default function WorkoutPlan() {
                         <span className="italic">{exercise.instructions}</span>
                       </div>
                     </div>
+                    {isSupported && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleSpeakExercise(exercise, index)}
+                        title="Listen to exercise instructions"
+                      >
+                        <Volume2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
