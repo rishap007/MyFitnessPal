@@ -16,22 +16,7 @@ import MealPlan from "@/pages/meals";
 import Chat from "@/pages/chat";
 import ExerciseLibrary from "@/pages/exercises";
 import Progress from "@/pages/progress";
-
-function Router() {
-  return (
-    <Switch>
-      <Route path="/" component={Landing} />
-      <Route path="/onboarding" component={Onboarding} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/workout" component={WorkoutPlan} />
-      <Route path="/meals" component={MealPlan} />
-      <Route path="/chat" component={Chat} />
-      <Route path="/exercises" component={ExerciseLibrary} />
-      <Route path="/progress" component={Progress} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
+import Plan from "@/pages/plan";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const style = {
@@ -65,6 +50,7 @@ function App() {
           <Switch>
             <Route path="/" component={Landing} />
             <Route path="/onboarding" component={Onboarding} />
+            <Route path="/plan" component={Plan} />
             <Route path="/dashboard">
               <AppLayout>
                 <Dashboard />

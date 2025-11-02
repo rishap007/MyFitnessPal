@@ -50,7 +50,6 @@ export default function Chat() {
 
   const toggleRecording = () => {
     setIsRecording(!isRecording);
-    console.log("Voice recording:", !isRecording);
   };
 
   const useSuggestedPrompt = (prompt: string) => {

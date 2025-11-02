@@ -91,7 +91,6 @@ export function AppSidebar() {
             className="w-full"
             onClick={() => {
               setVoiceActive(!voiceActive);
-              console.log("Voice assistant toggled:", !voiceActive);
             }}
             data-testid="button-voice-toggle"
           >

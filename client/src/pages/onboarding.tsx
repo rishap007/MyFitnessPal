@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,14 +13,31 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { User, Target, Home, Utensils } from "lucide-react";
+import { User, Target, Home, Utensils, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const steps = ["Profile", "Goals", "Preferences", "Location"];
 
+interface OnboardingFormData {
+  name: string;
+  email: string;
+  age: string;
+  gender: string;
+  height: string;
+  weight: string;
+  fitnessGoal: string;
+  fitnessLevel: string;
+  workoutLocation: string;
+  dietaryPreference: string;
+}
+
 export default function Onboarding() {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<OnboardingFormData>({
     name: "",
+    email: "",
     age: "",
     gender: "",
     height: "",
@@ -31,16 +50,88 @@ export default function Onboarding() {
 
   const progress = ((currentStep + 1) / steps.length) * 100;
 
-  const updateField = (field: string, value: string) => {
+  const generatePlanMutation = useMutation({
+    mutationFn: async (data: OnboardingFormData) => {
+      const response = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          age: parseInt(data.age),
+          gender: data.gender,
+          height: parseInt(data.height),
+          weight: parseInt(data.weight),
+          fitnessGoal: data.fitnessGoal,
+          fitnessLevel: data.fitnessLevel,
+          workoutLocation: data.workoutLocation,
+          dietaryPreference: data.dietaryPreference,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to generate plan");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Store plan data and user ID in localStorage
+      localStorage.setItem("userId", data.userId);
+      localStorage.setItem("fitnessPlan", JSON.stringify(data));
+
+      toast({
+        title: "Success!",
+        description: "Your personalized fitness plan has been generated!",
+      });
+
+      // Navigate to plan page
+      navigate("/plan");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateField = (field: keyof OnboardingFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    console.log(`Updated ${field}:`, value);
+  };
+
+  const validateStep = (): boolean => {
+    switch (currentStep) {
+      case 0:
+        return !!(formData.name && formData.email && formData.age && formData.gender && formData.height && formData.weight);
+      case 1:
+        return !!(formData.fitnessGoal && formData.fitnessLevel);
+      case 2:
+        return !!formData.dietaryPreference;
+      case 3:
+        return !!formData.workoutLocation;
+      default:
+        return false;
+    }
   };
 
   const nextStep = () => {
+    if (!validateStep()) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      console.log("Onboarding complete", formData);
+      // Submit form and generate plan
+      generatePlanMutation.mutate(formData);
     }
   };
 
@@ -87,6 +178,18 @@ export default function Onboarding() {
                     placeholder="John Doe"
                     className="h-14"
                     data-testid="input-name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => updateField("email", e.target.value)}
+                    placeholder="john@example.com"
+                    className="h-14"
+                    data-testid="input-email"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -258,8 +361,18 @@ export default function Onboarding() {
               onClick={nextStep}
               className="flex-1"
               data-testid="button-continue"
+              disabled={generatePlanMutation.isPending}
             >
-              {currentStep === steps.length - 1 ? "Complete" : "Continue"}
+              {generatePlanMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating Your Plan...
+                </>
+              ) : currentStep === steps.length - 1 ? (
+                "Generate My Plan"
+              ) : (
+                "Continue"
+              )}
             </Button>
           </div>
         </Card>
