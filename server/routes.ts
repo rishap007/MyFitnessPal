@@ -267,10 +267,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI generation routes
   app.post("/api/generate-plan", async (req, res) => {
     try {
+      console.log("📋 Received plan generation request:", req.body);
       const profileData = insertUserProfileSchema.parse(req.body);
 
+      console.log("🤖 Calling AI to generate fitness plan...");
       // Generate AI plan
       const plan = await generateFitnessPlan(profileData);
+      console.log("✅ AI plan generated successfully");
 
       // Save profile if it doesn't exist
       const existingProfile = await storage.getUserProfileByEmail(profileData.email);
@@ -278,19 +281,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (existingProfile) {
         userId = existingProfile.id;
+        console.log(`📝 Updating existing profile: ${userId}`);
         await storage.updateUserProfile(userId, profileData);
       } else {
+        console.log("📝 Creating new profile...");
         const newProfile = await storage.createUserProfile(profileData);
         userId = newProfile.id;
+        console.log(`✅ New profile created: ${userId}`);
       }
 
       // Save workout plan
+      console.log("💪 Saving workout plan...");
       const workoutPlan = await storage.createWorkoutPlan({
         userId,
         weekData: plan.workout,
       });
 
       // Save meal plan
+      console.log("🍽️ Saving meal plan...");
       const totalCalories = plan.meals[0]?.totalCalories || 2000;
       const macros = plan.meals[0]?.macros || { protein: 150, carbs: 200, fats: 60 };
 
@@ -301,6 +309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         weekData: plan.meals,
       });
 
+      console.log("🎉 Plan generation completed successfully!");
       res.json({
         userId,
         profile: plan.profile,
@@ -312,10 +321,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error("❌ Validation error:", error.errors);
         return res.status(400).json({ error: "Invalid profile data", details: error.errors });
       }
-      console.error("Error generating plan:", error);
-      res.status(500).json({ error: "Failed to generate plan" });
+      console.error("❌ Error generating plan:", error);
+      console.error("Stack trace:", error instanceof Error ? error.stack : 'No stack trace');
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate plan";
+      res.status(500).json({ error: errorMessage });
     }
   });
 

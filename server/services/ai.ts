@@ -1,9 +1,9 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { InsertUserProfile } from "@shared/schema";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
+// Initialize Gemini AI (Free - No payment required!)
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 export interface WorkoutExercise {
   name: string;
@@ -144,66 +144,91 @@ IMPORTANT: Return ONLY valid JSON in this exact format (no markdown, no code blo
   ]
 }`;
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a certified fitness coach and nutritionist. Always return valid JSON responses without markdown formatting.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.8,
-    });
+  // Retry logic with exponential backoff
+  let lastError: Error | null = null;
+  const maxRetries = 3;
 
-    const content = completion.choices[0].message.content;
-    if (!content) {
-      throw new Error("No content received from OpenAI");
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Sending request to Gemini AI... (Attempt ${attempt}/${maxRetries})`);
+
+      // Increased timeout to 120 seconds for complex fitness plan generation
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`AI request timed out after 120 seconds (attempt ${attempt})`)), 120000);
+      });
+
+      const result = await Promise.race([
+        model.generateContent(prompt),
+        timeoutPromise
+      ]) as any;
+
+      console.log("📥 Received response from Gemini AI");
+      const response = result.response;
+      const content = response.text();
+
+      if (!content) {
+        throw new Error("No content received from Gemini AI");
+      }
+
+      console.log("📝 Raw AI response (first 200 chars):", content.substring(0, 200));
+
+      // Clean up the response - remove markdown code blocks if present
+      let cleanContent = content.trim();
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/```\n?/g, '');
+      }
+
+      console.log("🔍 Parsing JSON response...");
+      const planData = JSON.parse(cleanContent);
+
+      console.log("✅ Successfully parsed fitness plan");
+      return {
+        profile,
+        workout: planData.workout,
+        meals: planData.meals,
+        tips: planData.tips || [],
+      };
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`❌ Error on attempt ${attempt}/${maxRetries}:`, error);
+
+      if (attempt < maxRetries) {
+        const waitTime = attempt * 2000; // 2s, 4s
+        console.log(`⏳ Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
     }
-
-    const planData = JSON.parse(content);
-
-    return {
-      profile,
-      workout: planData.workout,
-      meals: planData.meals,
-      tips: planData.tips || [],
-    };
-  } catch (error) {
-    console.error("Error generating fitness plan:", error);
-    throw new Error("Failed to generate fitness plan");
   }
+
+  // All retries failed
+  console.error("❌ All retry attempts failed for fitness plan generation");
+  if (lastError) {
+    console.error("Last error message:", lastError.message);
+    console.error("Stack trace:", lastError.stack);
+  }
+  throw new Error(`Failed to generate fitness plan after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
 }
 
 export async function generateMotivationalQuote(): Promise<string> {
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a motivational fitness coach. Generate a short, powerful, inspiring fitness quote (max 20 words).",
-        },
-        {
-          role: "user",
-          content: "Give me a motivational fitness quote for today.",
-        },
-      ],
-      max_tokens: 50,
-      temperature: 0.9,
+    const prompt = "You are a motivational fitness coach. Generate a short, powerful, inspiring fitness quote (max 20 words). Return only the quote, no extra text.";
+
+    // Add timeout to prevent hanging - 10 seconds max
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Quote generation timed out")), 10000);
     });
 
-    return (
-      completion.choices[0].message.content ||
-      "Your only limit is you. Push harder today!"
-    );
+    const result = await Promise.race([
+      model.generateContent(prompt),
+      timeoutPromise
+    ]) as any;
+
+    const response = result.response;
+    const quote = response.text().trim();
+
+    return quote || "Your only limit is you. Push harder today!";
   } catch (error) {
     console.error("Error generating quote:", error);
     return "Believe in yourself and push your limits!";
@@ -213,52 +238,44 @@ export async function generateMotivationalQuote(): Promise<string> {
 export async function generateExerciseImage(
   exerciseName: string
 ): Promise<string> {
-  try {
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: `A clear, professional demonstration of the exercise: ${exerciseName}. Show proper form and technique. Fitness photography style, clean background, athletic person performing the exercise correctly.`,
-      n: 1,
-      size: "1024x1024",
-      quality: "standard",
-    });
+  // Note: Image generation is not available with free Gemini API
+  // Options:
+  // 1. Use free stock photo APIs like Pexels or Unsplash
+  // 2. Use Hugging Face's free image generation models
+  // 3. Return a placeholder or search query
 
-    return response.data?.[0]?.url || "";
-  } catch (error) {
-    console.error("Error generating exercise image:", error);
-    throw new Error("Failed to generate exercise image");
-  }
+  console.log(`Image generation requested for: ${exerciseName}`);
+  console.log("Note: Using free Gemini API - image generation not included");
+
+  // Return a Pexels search URL as fallback (free to use)
+  const searchQuery = encodeURIComponent(`${exerciseName} exercise fitness`);
+  return `https://www.pexels.com/search/${searchQuery}`;
 }
 
 export async function generateMealImage(mealName: string): Promise<string> {
-  try {
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: `A beautiful, appetizing photo of ${mealName}. Professional food photography, well-plated, healthy meal, vibrant colors, clean presentation on a white plate.`,
-      n: 1,
-      size: "1024x1024",
-      quality: "standard",
-    });
+  // Note: Image generation is not available with free Gemini API
+  // Using Pexels search URL as a free alternative
 
-    return response.data?.[0]?.url || "";
-  } catch (error) {
-    console.error("Error generating meal image:", error);
-    throw new Error("Failed to generate meal image");
-  }
+  console.log(`Meal image requested for: ${mealName}`);
+  console.log("Note: Using free Gemini API - image generation not included");
+
+  // Return a Pexels search URL as fallback (free to use)
+  const searchQuery = encodeURIComponent(`${mealName} healthy food`);
+  return `https://www.pexels.com/search/${searchQuery}`;
 }
 
 export async function textToSpeech(text: string): Promise<Buffer> {
-  try {
-    const mp3 = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: "nova",
-      input: text,
-      speed: 1.0,
-    });
+  // Note: Text-to-speech is not available with free Gemini API
+  // For free TTS alternatives, consider:
+  // 1. Browser's built-in Web Speech API (client-side)
+  // 2. ElevenLabs free tier (10,000 chars/month)
+  // 3. Google Cloud TTS free tier (1M chars/month)
 
-    const buffer = Buffer.from(await mp3.arrayBuffer());
-    return buffer;
-  } catch (error) {
-    console.error("Error generating speech:", error);
-    throw new Error("Failed to generate speech");
-  }
+  console.log("Text-to-speech requested");
+  console.log("Note: TTS not included with free Gemini API");
+
+  throw new Error(
+    "Text-to-speech is not available with the free Gemini API. " +
+    "Please use browser's built-in speech synthesis or add a TTS service."
+  );
 }
