@@ -11,7 +11,7 @@
 [![Gemini AI](https://img.shields.io/badge/Gemini_AI-FREE-4285f4?logo=google)](https://ai.google.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-[🚀 Live Demo](#) • [📹 Video Demo](#) • [📖 Documentation](#documentation)
+[🚀 Live Demo](#) • [📹 Video Demo](https://drive.google.com/file/d/1KFTHggfVwkU0lZnW4zuc4follRZymkSk/view?usp=drive_link) • [📖 Documentation](#documentation)
 
 </div>
 
